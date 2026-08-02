@@ -129,10 +129,48 @@ at playback, never baked into the capture. The recording stays pristine and ever
 different path. **Variables** let you write `{{company}}` in any copy and override it per viewer
 with `?company=Acme` on the share URL.
 
+## The entry page
+
+Optional, and off by default: a cover laid over the demo's own first screen with a headline, a
+supporting line and one start button. The tour waits behind it until the button is pressed —
+its cursor doesn't move, a timed step doesn't run out, and the player's own chrome (progress
+bar, dots, **Hide guide**) stays out of the way until the viewer is actually in.
+
+Switch it on under **Entry page** in the Demo pane. Everything on it is optional and everything
+is yours: eyebrow, headline, body, button label, logo. Leave the headline and body empty and
+they fall back to the demo's name and description, so it looks finished before you write a word.
+
+- **Text** — left, over the screen, or centred.
+- **Tone** — light type on a darkened screen, or dark type on a lightened one.
+- **Backdrop** — *blur* frosts the first screen behind the words, *dim* darkens it, *clear*
+  pools a wash under the copy and leaves the rest of the product on show, and *solid* hides
+  the capture entirely behind a gradient built from your accent colour (for a demo whose first
+  screen is a login or an empty state).
+- **Animate the start button** — a breathing aura in the accent colour, a highlight that travels
+  the rim, and a slow sheen across the face. On by default, and skipped entirely under
+  `prefers-reduced-motion`.
+- **Show step count and rough length** — "20 steps · about 3 min" under the button.
+
+**Preview it** opens the cover over the editing canvas, and every change lands on it as you
+type. It never opens by itself while you edit, or it would sit in front of every step you were
+trying to work on. Enter, Space or → start the tour from the keyboard.
+
+If lead capture is set to ask *before* the demo, the order is cover → form → step one: the
+viewer decides to take the tour first, and is only asked for their details once they have.
+
 ## Playback
 
-The left and right arrow keys step through the demo, and on phones the dots give way to two
-larger, translucent arrows so the screen behind stays visible.
+The left and right arrow keys step through the demo.
+
+**On phones the guidance docks to an edge instead of floating over the screen.** A 1440-wide
+capture shown at ~342px is far too small to host a card on top of it: measured on a 390px
+phone, a centred modal covered 82% of the screen and collided with both the arrow bar and the
+Hide guide button. Below 560px every annotation — tooltip, modal or caption — becomes a sheet
+docked to the bottom edge with compact type, and back/next move inside it, so the floating
+arrow bar stands down and there is nothing left to overlap. If a step's target sits low enough
+that the sheet would cover it, the sheet flips to the top edge instead. The Hide guide button
+is the one control that can't move into the card (it has to survive hiding the guide), so it
+goes icon-only and takes the corner furthest from both the sheet and the target.
 
 Viewers get a **Hide guide** button in the bottom-right corner. It drops the dimming,
 spotlight, tooltip and cursor so they can look at the product screen exactly as captured, then

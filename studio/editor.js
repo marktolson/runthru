@@ -421,6 +421,7 @@ function renderDemo() {
   const s = doc.settings || {};
   const lf = doc.leadForm || {};
   const cta = doc.endCta || {};
+  const cv = doc.cover || {};
 
   pane.innerHTML = `
     <div class="group">
@@ -473,6 +474,53 @@ function renderDemo() {
         )
         .join('')}
       <button class="btn btn--sm" id="addVar">+ Add variable</button>
+    </div>
+
+    <div class="group">
+      <h4>Entry page</h4>
+      <div class="hint" style="margin-bottom:8px">An optional cover over the first screen: a headline and one start button. The demo waits behind it.</div>
+      <label class="check"><input type="checkbox" id="cvOn" ${cv.enabled ? 'checked' : ''}> Open on an entry page</label>
+      ${
+        cv.enabled
+          ? `<div class="field" style="margin-top:9px"><label>Eyebrow <span class="hint">(optional)</span></label>
+              <input class="input" id="cvEyebrow" value="${esc(cv.eyebrow || '')}" placeholder="Product tour"></div>
+             <div class="field"><label>Headline</label>
+              <input class="input" id="cvHead" value="${esc(cv.headline || '')}" placeholder="${esc(doc.name || 'Build demo pages')}"></div>
+             <div class="field"><label>Body</label>
+              <textarea class="input" id="cvBody" rows="2" placeholder="Falls back to the description.">${esc(cv.body || '')}</textarea></div>
+             <div class="field"><label>Button</label>
+              <input class="input" id="cvBtn" value="${esc(cv.buttonLabel || '')}" placeholder="Take a tour"></div>
+             <div class="row">
+               <div class="field" style="flex:1"><label>Text</label>
+                 <select class="input" id="cvAlign">
+                   <option value="left" ${cv.align !== 'center' ? 'selected' : ''}>Left</option>
+                   <option value="center" ${cv.align === 'center' ? 'selected' : ''}>Centred</option>
+                 </select></div>
+               <div class="field" style="flex:1"><label>Tone</label>
+                 <select class="input" id="cvTheme">
+                   <option value="dark" ${cv.theme !== 'light' ? 'selected' : ''}>Dark</option>
+                   <option value="light" ${cv.theme === 'light' ? 'selected' : ''}>Light</option>
+                 </select></div>
+             </div>
+             <div class="field"><label>Backdrop</label>
+               <select class="input" id="cvBack">
+                 ${[
+                   ['blur', 'Blur the first screen'],
+                   ['dim', 'Dim the first screen'],
+                   ['clear', 'Barely touch the first screen'],
+                   ['solid', 'Hide it — branded gradient'],
+                 ]
+                   .map(([v, l]) => `<option value="${v}" ${(cv.backdrop || 'blur') === v ? 'selected' : ''}>${l}</option>`)
+                   .join('')}
+               </select></div>
+             <div class="field"><label>Logo URL <span class="hint">(optional)</span></label>
+               <input class="input" id="cvLogo" value="${esc(cv.logo || '')}" placeholder="https://…/logo.svg"></div>
+             <label class="check"><input type="checkbox" id="cvGlow" ${cv.glow !== false ? 'checked' : ''}> Animate the start button</label>
+             <label class="check"><input type="checkbox" id="cvSteps" ${cv.showSteps !== false ? 'checked' : ''}> Show step count and rough length</label>
+             <button class="btn btn--sm" id="cvPreview" style="margin-top:8px">Preview it</button>
+             <div class="hint" style="margin-top:6px">The preview never opens on its own while you edit — every change lands on it live.</div>`
+          : ''
+      }
     </div>
 
     <div class="group">
@@ -543,6 +591,29 @@ function wireDemo() {
       op('set_variables', { variables }, { quiet: true });
     };
   });
+
+  // Entry page. Turning it on reveals its fields, so that one re-renders the pane; everything
+  // else saves 'light' — the inspector keeps the caret where it was and the open preview is
+  // repainted in place, so writing the headline shows it landing on the cover as you type.
+  $('#cvOn').onchange = (e) => op('set_cover', { enabled: e.target.checked }, { quiet: true, render: 'chrome' });
+  for (const [id, key] of [
+    ['#cvEyebrow', 'eyebrow'],
+    ['#cvHead', 'headline'],
+    ['#cvBody', 'body'],
+    ['#cvBtn', 'buttonLabel'],
+    ['#cvLogo', 'logo'],
+  ]) {
+    if ($(id)) $(id).oninput = (e) => opQuiet('set_cover', { [key]: e.target.value });
+  }
+  for (const [id, key] of [['#cvAlign', 'align'], ['#cvTheme', 'theme'], ['#cvBack', 'backdrop']]) {
+    if ($(id)) $(id).onchange = (e) => op('set_cover', { [key]: e.target.value }, { quiet: true, render: 'light' });
+  }
+  for (const [id, key] of [['#cvGlow', 'glow'], ['#cvSteps', 'showSteps']]) {
+    if ($(id)) $(id).onchange = (e) => op('set_cover', { [key]: e.target.checked }, { quiet: true, render: 'light' });
+  }
+  // The preview player never shows the cover by itself — it would sit in front of every step
+  // edit — so opening it is an explicit act. The start button dismisses it, same as a viewer's.
+  if ($('#cvPreview')) $('#cvPreview').onclick = () => player?.showCover();
 
   $('#lfOn').onchange = (e) => op('set_lead_form', { enabled: e.target.checked }, { quiet: true });
   if ($('#lfPos')) $('#lfPos').onchange = (e) => op('set_lead_form', { position: e.target.value }, { quiet: true });

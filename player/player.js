@@ -52,6 +52,8 @@ export class DemoPlayer {
     this.destroyed = false;
     this.firstPaint = true;
     this.peeking = false; // guide hidden so the viewer can look at the underlying screen
+    this.cover = null; // the entry page, while it is up
+    this.covering = false; // first step is loaded but held: no re-enactment, no auto-advance
     this._timer = null;
     this._seq = 0; // guards against out-of-order loads when clicking quickly
 
@@ -60,6 +62,8 @@ export class DemoPlayer {
     this._typeTimer = null;
     this._typeRestore = null;
     this._motion = window.matchMedia ? matchMedia('(prefers-reduced-motion: reduce)') : { matches: false };
+    // Must agree with the breakpoint in player.css that docks the tip to an edge.
+    this._phone = window.matchMedia ? matchMedia('(max-width: 560px)') : { matches: false };
 
     this.vars = this.resolveVars(opts.vars);
     this.build();
@@ -155,6 +159,15 @@ export class DemoPlayer {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       const t = document.activeElement;
       if (t && (/^(input|textarea|select)$/i.test(t.tagName) || t.isContentEditable)) return;
+      // The entry page is a door, not a step: the keys that mean "go" open it, and nothing
+      // pages past it.
+      if (this.cover) {
+        if (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowRight') {
+          e.preventDefault();
+          this.startFromCover();
+        }
+        return;
+      }
       if (e.key === 'ArrowRight') {
         e.preventDefault();
         this.advance();
@@ -238,11 +251,41 @@ export class DemoPlayer {
     this.onEvent('demo_view', { slug: this.demo.slug });
     this.buildNav();
 
-    if (this.demo.leadForm?.enabled && this.demo.leadForm.position === 'start' && !this.editing) {
-      this.showLeadForm(() => this.goTo(this.demo.settings?.startNodeId || this.nodes[0].id));
+    const startId = this.demo.settings?.startNodeId || this.nodes[0].id;
+    const lf = this.demo.leadForm;
+    const gated = !!(lf?.enabled && lf.position === 'start' && !this.editing);
+
+    // With an entry page the running order is cover → lead form → demo: the viewer decides to
+    // take the tour first and is only asked for their details once they have.
+    if (this.demo.cover?.enabled && !this.editing) {
+      // The cover sits *over* the first screen, so load it underneath first. `covering` holds
+      // that step's re-enactment and any auto-advance until the viewer presses start, or the
+      // cursor would be gliding around behind the entry page and a timed step could run out.
+      this.covering = true;
+      await this.goTo(startId);
+      if (this.destroyed) return;
+      this.showCover(() => {
+        this.covering = false;
+        if (gated) this.showLeadForm(() => this.resumeStep());
+        else this.resumeStep();
+      });
       return;
     }
-    await this.goTo(this.demo.settings?.startNodeId || this.nodes[0].id);
+
+    if (gated) {
+      this.showLeadForm(() => this.goTo(startId));
+      return;
+    }
+    await this.goTo(startId);
+  }
+
+  // Play the current step's performance now, for a step that was loaded while something was
+  // held over it (the entry page, a gating lead form).
+  resumeStep() {
+    const node = this.node(this.nodeId);
+    if (!node || this.destroyed) return;
+    const reenactMs = this.reenact(node, this._seq);
+    this.scheduleAutoAdvance(node, reenactMs);
   }
 
   async goTo(id, { record = true } = {}) {
@@ -493,6 +536,9 @@ export class DemoPlayer {
     const scale = Math.min(1, avail / this.captured.w);
     this.scale = scale;
     this.stage.style.transform = `scale(${scale})`;
+    // Published as a variable so chrome that is *not* inside the scaled stage — the entry page —
+    // can size its type to the screen it is sitting on rather than to the browser window.
+    this.el.style.setProperty('--dp-scale', String(scale));
     this.viewport.style.height = `${this.captured.h * scale}px`;
     if (this.nodeId) this.position(this.node(this.nodeId));
   }
@@ -521,16 +567,12 @@ export class DemoPlayer {
     this.nav.classList.remove('dp__off');
     // Arrows only. A text label next to a chevron wraps in a narrow bar and reads as broken;
     // the direction is self-evident, so the words are carried by the tooltip instead.
-    const chevron = (d) =>
-      `<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor"
-            stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-         <path d="${d}"/></svg>`;
     this.nav.innerHTML = `
-      <button data-act="back" aria-label="Previous step" title="Previous step">${chevron('M15 5 8 12l7 7')}</button>
+      <button data-act="back" aria-label="Previous step" title="Previous step">${chevron(CHEV_BACK)}</button>
       <div class="dp__dots">${this.nodes
         .map((n, i) => `<span class="dp__dot" data-goto="${n.id}" title="Step ${i + 1}"></span>`)
         .join('')}</div>
-      <button data-act="next" aria-label="Next step" title="Next step">${chevron('M9 5l7 7-7 7')}</button>`;
+      <button data-act="next" aria-label="Next step" title="Next step">${chevron(CHEV_NEXT)}</button>`;
     this.navBack = this.nav.querySelector('[data-act="back"]');
     this.navNext = this.nav.querySelector('[data-act="next"]');
     this.dots = [...this.nav.querySelectorAll('.dp__dot')];
@@ -543,6 +585,9 @@ export class DemoPlayer {
     this.demo = demo;
     const node = this.node(this.nodeId);
     if (node) this.updateChrome(node);
+    // An open entry page is being edited right now if it is on screen at all, so repaint it
+    // from the fresh doc — in place, without replaying its entrance.
+    if (this.cover) this.paintCover();
   }
 
   updateChrome(node) {
@@ -581,6 +626,12 @@ export class DemoPlayer {
     const showCta = !branches.length && (advanceMode === 'next' || advanceMode === 'timer' || this.editing);
     const navHidden = this.demo.settings?.showControls === false;
     const showFoot = showCta || branches.length > 0 || navHidden;
+    // On a phone the card docks to the bottom edge and the floating back/next bar is hidden —
+    // measured, it sat right on top of the card. These take its place inside the card. They are
+    // always in the DOM and revealed by the same media query that docks it, so the layout never
+    // depends on a resize listener re-rendering the tip. A fork must still be chosen explicitly,
+    // and a demo whose author switched the controls off does not get them back here.
+    const phoneNav = !branches.length && !navHidden;
 
     const paint = () => {
       this.tip.classList.toggle('dp__off', !showTip);
@@ -602,10 +653,22 @@ export class DemoPlayer {
             // gave every step two competing control clusters saying the same thing, so the
             // footer now appears only when this step needs its own action — or when the nav
             // bar is switched off and nothing else shows progress.
-            showFoot
-              ? `<div class="dp__tipfoot">
+            showFoot || phoneNav
+              ? `<div class="dp__tipfoot${showFoot ? '' : ' dp__tipfoot--phone'}">
+                   ${
+                     phoneNav
+                       ? `<button class="dp__tipnav dp__tipback" data-act="back" aria-label="Previous step"
+                                  ${idx === 0 ? 'disabled' : ''}>${chevron(CHEV_BACK)}</button>`
+                       : ''
+                   }
                    <span class="dp__count">${idx + 1} of ${total}</span>
-                   ${showCta ? `<button class="dp__btn" data-act="next">${esc(ctaLabel)}</button>` : ''}
+                   ${
+                     showCta
+                       ? `<button class="dp__btn" data-act="next">${esc(ctaLabel)}</button>`
+                       : phoneNav
+                         ? `<button class="dp__btn dp__tipnav" data-act="next">${esc(ctaLabel)}</button>`
+                         : ''
+                   }
                  </div>`
               : ''
           }`;
@@ -667,6 +730,27 @@ export class DemoPlayer {
       this.tip.style.top = '';
     }
 
+    // On a phone the card is docked to an edge, and a step whose target sits low on the screen
+    // would have that target hidden under it — the viewer told to click something they cannot
+    // see. Dock to whichever edge the target is not on. A target that reaches both edges on a
+    // screen this small keeps the bottom, which is the easier reach.
+    let sheetTop = false;
+    if (this._phone.matches && r && kind !== 'modal') {
+      const vh = this.viewport.clientHeight || 0;
+      const th = this.tip.offsetHeight;
+      sheetTop = r.y + r.h > vh - th && r.y >= th;
+    }
+    this.tip.classList.toggle('dp__tip--sheettop', sheetTop);
+    this.el.classList.toggle('dp--sheettop', sheetTop);
+
+    // The card takes one edge and the peek button the opposite corner — but a target in that
+    // corner would still be sat on. It is the one control that cannot be moved into the card
+    // (it has to survive hiding the guide), so instead it takes the side the target is not on.
+    this.el.classList.toggle(
+      'dp--peekleft',
+      this._phone.matches && !!r && r.x + r.w / 2 > (this.viewport.clientWidth || 0) / 2,
+    );
+
     // A resize or late font load moves the target; keep a settled cursor pinned to it.
     // Mid-glide the animation keeps aiming at its original destination — close enough,
     // and cancelling it on every reflow would make the cursor stutter.
@@ -712,6 +796,108 @@ export class DemoPlayer {
     tip.style.top = `${clamp(top, 10, Math.max(10, H - th - 10))}px`;
   }
 
+  // ---- cover: the optional entry page ------------------------------------
+
+  // A poster screen laid over the first captured step: a headline, a supporting line and one
+  // prominent start button. Every part of it is optional — switched off, the demo opens on step
+  // one exactly as before.
+  //
+  // It deliberately hides the player's own chrome while it is up. An entry page with a progress
+  // bar, a dot strip and a Hide guide button around it reads as a tour that has already started
+  // and stalled; one clear action reads as a door.
+  //
+  // `after` runs once the viewer presses start. Returns a closer, which is how the studio
+  // dismisses a preview.
+  showCover(after) {
+    if (this.cover) this.cover.remove();
+    const root = document.createElement('div');
+    // The entrance animation is carried by a class so that repainting the cover — which the
+    // studio does on every keystroke while its copy is being written — does not replay it.
+    root.className = 'dp__cover dp__cover--enter';
+    this.viewport.appendChild(root);
+    this.cover = root;
+    this._coverAfter = after || null;
+    this._coverStarted = false;
+    this.paintCover();
+    clearTimeout(this._coverEnter);
+    this._coverEnter = setTimeout(() => root.classList.remove('dp__cover--enter'), 1400);
+    this.onEvent('cover_view', { slug: this.demo.slug });
+    return () => this.closeCover();
+  }
+
+  // Draw (or redraw) the entry page from the current document. Split out from showCover so the
+  // studio's live editing updates the open cover in place.
+  paintCover() {
+    const root = this.cover;
+    if (!root) return;
+    const c = this.demo.cover || {};
+    const align = c.align === 'center' ? 'center' : 'left';
+    const backdrop = ['blur', 'dim', 'clear', 'solid'].includes(c.backdrop) ? c.backdrop : 'blur';
+    // Headline and body fall back to the demo's own name and description, so switching the
+    // entry page on gives something presentable before a word is written.
+    const headline = this.interpolate(c.headline || this.demo.name || '');
+    const body = this.interpolate(c.body || this.demo.description || '');
+    const eyebrow = this.interpolate(c.eyebrow || '');
+    const label = this.interpolate(c.buttonLabel || 'Take a tour');
+    const logo = c.logo || this.demo.theme?.logo || '';
+
+    const steps = this.nodes.length;
+    // A rough figure only, and said as one: it sets an expectation ("this is short") without
+    // pretending to know how long someone will linger on a screen.
+    const mins = Math.max(1, Math.round((steps * 8) / 60));
+    const meta = c.showSteps === false ? '' : `${steps} step${steps === 1 ? '' : 's'} · about ${mins} min`;
+
+    root.dataset.align = align;
+    root.dataset.theme = c.theme === 'light' ? 'light' : 'dark';
+    root.dataset.backdrop = backdrop;
+    root.classList.toggle('dp__cover--glow', c.glow !== false);
+    this.el.classList.add('dp--covering');
+    this.el.classList.toggle('dp--cover-blur', backdrop === 'blur');
+
+    root.innerHTML = `
+      <div class="dp__coverscrim"></div>
+      <div class="dp__coverinner">
+        ${logo ? `<img class="dp__coverlogo" src="${esc(logo)}" alt="">` : ''}
+        ${eyebrow ? `<p class="dp__covereyebrow">${esc(eyebrow)}</p>` : ''}
+        ${headline ? `<h1 class="dp__coverh">${esc(headline)}</h1>` : ''}
+        ${body ? `<p class="dp__coverp">${esc(body)}</p>` : ''}
+        <div class="dp__coverstart">
+          <span class="dp__coveraura" aria-hidden="true"></span>
+          <span class="dp__coverring" aria-hidden="true"><i></i></span>
+          <button class="dp__coverbtn" type="button">
+            <span>${esc(label)}</span>
+            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor"
+                 stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M9 5l7 7-7 7"/></svg>
+          </button>
+        </div>
+        ${meta ? `<p class="dp__covermeta">${esc(meta)}</p>` : ''}
+      </div>`;
+
+    root.querySelector('.dp__coverbtn').addEventListener('click', () => this.startFromCover());
+  }
+
+  startFromCover() {
+    if (this._coverStarted) return; // the button and the keyboard can both land here
+    this._coverStarted = true;
+    this.onEvent('cover_start', { slug: this.demo.slug });
+    const after = this._coverAfter;
+    this.closeCover();
+    after?.();
+  }
+
+  closeCover() {
+    const root = this.cover;
+    if (!root) return;
+    this.cover = null;
+    this._coverAfter = null;
+    // Dropping the classes now rather than after the fade is what makes the reveal read as one
+    // motion: the screen behind eases out of its blur while the entry page fades off it.
+    this.el.classList.remove('dp--covering', 'dp--cover-blur');
+    root.classList.add('dp__cover--out');
+    setTimeout(() => root.remove(), 560);
+  }
+
   // ---- peek: hide the guide to inspect the real screen -------------------
 
   // Deliberately a labelled button rather than an icon: someone who has never seen a product
@@ -747,8 +933,9 @@ export class DemoPlayer {
   // Returns how long the whole performance takes, so autoplay can wait for it to finish.
   reenact(node, seq) {
     let travel = 0;
-    // Nothing is performed while the guide is hidden — the viewer asked to see the screen.
-    if (this.peeking) return 0;
+    // Nothing is performed while the guide is hidden — the viewer asked to see the screen —
+    // or while the entry page is still up over it.
+    if (this.peeking || this.covering) return 0;
     const wantCursor = this.demo.settings?.cursor !== false && !this._motion.matches;
     const dest = wantCursor ? this.cursorDest(node) : null;
     if (dest) travel = this.moveCursor(dest);
@@ -949,7 +1136,7 @@ export class DemoPlayer {
   // waits it out so a step never advances while its text is still being typed.
   scheduleAutoAdvance(node, extraMs = 0) {
     clearTimeout(this._timer);
-    if (this.editing) return;
+    if (this.editing || this.covering) return;
     const auto = this.demo.settings?.autoplay;
     const mode = node.advance?.on;
     if (mode === 'timer' || auto) {
@@ -1076,9 +1263,11 @@ export class DemoPlayer {
 
   destroy() {
     this.destroyed = true;
+    this.cover = null;
     clearTimeout(this._timer);
     clearTimeout(this._preloadTimer);
     clearTimeout(this._holdTimer);
+    clearTimeout(this._coverEnter);
     this.cancelTyping();
     this._cursorAnim?.cancel();
     removeEventListener('resize', this._onResize);
@@ -1154,6 +1343,13 @@ export function selectorFor(el) {
 }
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+const chevron = (d) =>
+  `<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor"
+        stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+     <path d="${d}"/></svg>`;
+const CHEV_BACK = 'M15 5 8 12l7 7';
+const CHEV_NEXT = 'M9 5l7 7-7 7';
 
 function esc(s) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);

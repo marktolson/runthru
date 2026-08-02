@@ -332,6 +332,28 @@ describe('demo-level settings', () => {
   });
 });
 
+describe('the entry page', () => {
+  test('set_cover merges, so switching it on later keeps the copy written for it', () => {
+    let doc = applyOp(fixture(), 'set_cover', { headline: 'See it in two minutes' }).doc;
+    doc = applyOp(doc, 'set_cover', { enabled: true }).doc;
+    assert.equal(doc.cover.headline, 'See it in two minutes');
+    assert.equal(doc.cover.enabled, true);
+  });
+
+  test('the switches that turn things off are honoured, not read as absent', () => {
+    const doc = applyOp(fixture(), 'set_cover', { glow: false, showSteps: false, enabled: false }).doc;
+    assert.equal(doc.cover.glow, false);
+    assert.equal(doc.cover.showSteps, false);
+    assert.equal(doc.cover.enabled, false);
+  });
+
+  test('get_demo shows the model the cover, so it can see what it is editing', () => {
+    const doc = applyOp(fixture(), 'set_cover', { enabled: true, buttonLabel: 'Start the tour' }).doc;
+    const out = applyOp(doc, 'get_demo', {}).result;
+    assert.equal(out.cover.buttonLabel, 'Start the tour');
+  });
+});
+
 describe('get_demo outline', () => {
   test('summarises the demo and resolves each step’s real next', () => {
     const out = applyOp(fixture(), 'get_demo', {}).result;

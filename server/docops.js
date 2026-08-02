@@ -79,6 +79,7 @@ function outline(doc) {
     variables: doc.variables,
     theme: doc.theme,
     settings: doc.settings,
+    cover: doc.cover,
     leadForm: { enabled: doc.leadForm?.enabled, position: doc.leadForm?.position },
     endCta: doc.endCta,
     steps: doc.nodes.map((n, i) => ({
@@ -492,6 +493,36 @@ export const OPS = {
         default: v.default ?? '',
       }));
       return `Set ${doc.variables.length} variable${doc.variables.length === 1 ? '' : 's'}`;
+    },
+  },
+
+  set_cover: {
+    description:
+      'Configure the optional entry page: the poster screen a viewer sees before the tour starts, laid over the first captured screen with a headline, a supporting line and one start button. Only the fields you pass are changed.',
+    params: {
+      type: 'object',
+      properties: {
+        enabled: bool('Show the entry page before the first step.'),
+        eyebrow: str('Small uppercase label above the headline, e.g. "Product tour".'),
+        headline: str('The large headline. Leave empty to fall back to the demo name.'),
+        body: str('One or two supporting sentences. Leave empty to fall back to the demo description.'),
+        buttonLabel: str('Start button label, e.g. "Take a tour".'),
+        align: enumOf(['left', 'center'], 'Where the text block sits over the screen.'),
+        theme: enumOf(['dark', 'light'], 'Light text on a darkened screen, or dark text on a lightened one.'),
+        backdrop: enumOf(
+          ['blur', 'dim', 'clear', 'solid'],
+          'How the first captured screen shows through: blur frosts it, dim darkens it, clear barely touches it, solid replaces it with a gradient built from the accent colour.',
+        ),
+        glow: bool('Animate the aura and travelling highlight around the start button.'),
+        showSteps: bool('Show the step count and rough duration under the button.'),
+        logo: str('URL or data URI of a logo shown above the headline. Falls back to the theme logo.'),
+      },
+      required: [],
+    },
+    run: (doc, args) => {
+      doc.cover ||= {};
+      for (const [k, v] of Object.entries(args)) if (v !== undefined) doc.cover[k] = v;
+      return args.enabled === false ? 'Turned the entry page off' : 'Updated the entry page';
     },
   },
 

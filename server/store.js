@@ -74,6 +74,21 @@ export function blankDemo(slug, name, startUrl = '') {
       loop: false,
     },
     variables: [],
+    // The optional entry page. Off by default: a demo that is embedded in a page which already
+    // introduces it should start on step one, not behind a second front door.
+    cover: {
+      enabled: false,
+      eyebrow: '',
+      headline: '',
+      body: '',
+      buttonLabel: 'Take a tour',
+      align: 'left',
+      theme: 'dark',
+      backdrop: 'blur',
+      glow: true,
+      showSteps: true,
+      logo: '',
+    },
     nodes: [],
     // Monotonic snapshot counter. Never reset — see capture.js for why reusing a filename
     // corrupts undo.
