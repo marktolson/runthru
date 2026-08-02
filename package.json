@@ -1,0 +1,19 @@
+{
+  "name": "runthru",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "author": "Mark Tolson",
+  "type": "module",
+  "description": "Runthru — record a runthru of any web app, edit it (by hand or with AI), export a static click-through demo.",
+  "scripts": {
+    "studio": "node server/index.js",
+    "serve-export": "node server/serve-export.js",
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.6.1",
+    "express": "^4.22.2",
+    "playwright": "^1.62.0"
+  }
+}

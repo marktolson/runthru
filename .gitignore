@@ -1,0 +1,16 @@
+node_modules/
+.env
+.env.*
+!.env.example
+
+# Recorded demos and their captured assets
+demos/
+
+# Exported static bundles
+dist/
+
+# Playwright persistent browser profiles (contain live login cookies)
+.profiles/
+
+.DS_Store
+*.log

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke-linecap="round">
+  <title>Runthru</title>
+  <path d="M13 4.25H7A2.75 2.75 0 0 0 4.25 7v10A2.75 2.75 0 0 0 7 19.75h6" stroke="#4b49c9" stroke-width="2"/>
+  <path d="M16.4 4.25H17A2.75 2.75 0 0 1 19.75 7v2" stroke="#4b49c9" stroke-width="2"/>
+  <path d="M19.75 15v2A2.75 2.75 0 0 1 17 19.75h-.6" stroke="#4b49c9" stroke-width="2"/>
+  <path d="M10.9 7.9 20.5 12l-9.6 4.1z" fill="#7d7bff"/>
+</svg>

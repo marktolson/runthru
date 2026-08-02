@@ -1,0 +1,581 @@
+/* Demo player. Deliberately self-contained and prefixed so it can be dropped onto any host
+   page (the showcase embed) without colliding with the host's styles. */
+
+.dp {
+  --dp-accent: #5b5bd6;
+  --dp-accent-text: #fff;
+  --dp-radius: 12px;
+  --dp-overlay: 0.55;
+  --dp-font: ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
+  position: relative;
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  background: #0b0b0f;
+  border-radius: var(--dp-radius);
+  font-family: var(--dp-font);
+  color: #18181b;
+  -webkit-font-smoothing: antialiased;
+}
+
+.dp *,
+.dp *::before,
+.dp *::after {
+  box-sizing: border-box;
+}
+
+/* The stage is sized to the captured viewport, then scaled to fit its container. Measuring
+   targets in captured coordinates and scaling once keeps every rect exact. */
+.dp__stage {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: top left;
+  background: #fff;
+}
+
+/* Two stacked buffers. The next step is preloaded into the hidden one and cross-faded in, so
+   advancing never flashes the white of a reloading iframe. */
+.dp__frame {
+  position: absolute;
+  inset: 0;
+  display: block;
+  border: 0;
+  background: #fff;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 190ms linear;
+}
+.dp__frame--on {
+  opacity: 1;
+  pointer-events: auto;
+  z-index: 1;
+}
+/* The outgoing frame during a cross-fade: held fully opaque underneath the incoming one, so
+   the fade never passes through a transparent moment. Dropped once the fade completes. */
+.dp__frame--hold {
+  opacity: 1;
+  z-index: 0;
+  transition: none;
+}
+
+/* Single off-switch for every overlay element, so they fade rather than pop. */
+.dp__off {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+.dp__viewport {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+}
+
+/* Blocks stray clicks on the snapshot; the spotlight hole is the only live region. */
+.dp__shield {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  cursor: default;
+}
+.dp--freeroam .dp__shield {
+  pointer-events: none;
+}
+
+/* The spotlight persists across steps and is only repositioned, so it glides from one target
+   to the next instead of being rebuilt. That travel is what makes playback feel continuous. */
+.dp__spot {
+  position: absolute;
+  z-index: 6;
+  border-radius: 6px;
+  box-shadow: 0 0 0 9999px rgba(9, 9, 14, var(--dp-overlay));
+  pointer-events: none;
+  transition:
+    top 420ms cubic-bezier(0.32, 0.72, 0, 1),
+    left 420ms cubic-bezier(0.32, 0.72, 0, 1),
+    width 420ms cubic-bezier(0.32, 0.72, 0, 1),
+    height 420ms cubic-bezier(0.32, 0.72, 0, 1),
+    opacity 220ms linear;
+}
+
+/* The clickable hole. Sits over the target so the click is ours, not the snapshot's. */
+.dp__hit {
+  position: absolute;
+  z-index: 8;
+  cursor: pointer;
+  border-radius: 6px;
+  transition:
+    top 420ms cubic-bezier(0.32, 0.72, 0, 1),
+    left 420ms cubic-bezier(0.32, 0.72, 0, 1),
+    width 420ms cubic-bezier(0.32, 0.72, 0, 1),
+    height 420ms cubic-bezier(0.32, 0.72, 0, 1),
+    opacity 220ms linear;
+}
+.dp__hit::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 8px;
+  border: 2px solid var(--dp-accent);
+  opacity: 0.9;
+}
+
+.dp__beacon {
+  position: absolute;
+  z-index: 9;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--dp-accent);
+  pointer-events: none;
+  transition:
+    top 420ms cubic-bezier(0.32, 0.72, 0, 1),
+    left 420ms cubic-bezier(0.32, 0.72, 0, 1),
+    opacity 220ms linear;
+}
+.dp__beacon::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--dp-accent);
+  animation: dp-ping 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+@keyframes dp-ping {
+  0% { transform: scale(1); opacity: 0.7; }
+  75%, 100% { transform: scale(2.8); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dp__beacon::before { animation: none; }
+  .dp__spot, .dp__hit, .dp__beacon, .dp__tip, .dp__frame { transition: none; }
+  /* The guide cursor and key HUD are never shown at all — the player checks the same media
+     query and skips the re-enactment, so these rules are just a belt for that suspender. */
+  .dp__cursor, .dp__ripple, .dp__caret { animation: none; }
+}
+
+/* ---- guide cursor & keystroke HUD ---- */
+
+/* Positioned by left/top with its hotspot (the arrow tip) at that point; all travel is done
+   with WAAPI transforms so there is deliberately no left/top transition to fight with. */
+.dp__cursor {
+  position: absolute;
+  z-index: 14;
+  width: 22px;
+  height: 22px;
+  margin: -3px 0 0 -5px; /* puts the SVG arrow tip on the hotspot */
+  pointer-events: none;
+  transform-origin: 5px 3px;
+  transition: opacity 260ms linear;
+  filter: drop-shadow(0 1px 2.5px rgba(0, 0, 0, 0.45));
+}
+
+.dp__ripple {
+  position: absolute;
+  z-index: 13;
+  width: 16px;
+  height: 16px;
+  margin: -8px 0 0 -8px;
+  border-radius: 50%;
+  border: 2.5px solid var(--dp-accent);
+  pointer-events: none;
+  animation: dp-ripple 620ms cubic-bezier(0, 0, 0.2, 1) forwards;
+}
+@keyframes dp-ripple {
+  0% { transform: scale(0.5); opacity: 0.95; }
+  100% { transform: scale(3.2); opacity: 0; }
+}
+
+/* Screencast-style readout of what the step "types". */
+.dp__keys {
+  position: absolute;
+  z-index: 13;
+  bottom: 64px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  max-width: min(520px, 86%);
+  padding: 9px 14px;
+  border-radius: 10px;
+  background: rgba(16, 16, 20, 0.88);
+  color: #fff;
+  font: 500 13.5px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(8px);
+  white-space: nowrap;
+  overflow: hidden;
+  transition: opacity 220ms linear;
+}
+.dp__caret {
+  width: 2px;
+  height: 15px;
+  margin-left: 2px;
+  background: var(--dp-accent);
+  animation: dp-caret 950ms steps(2, start) infinite;
+}
+@keyframes dp-caret {
+  50% { opacity: 0; }
+}
+.dp__kbd {
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.14);
+  box-shadow: inset 0 -2px 0 rgba(255, 255, 255, 0.16), 0 0 0 1px rgba(255, 255, 255, 0.1);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+/* ---- tooltip ---- */
+
+/* Persistent across steps: its contents are swapped while it is invisible, then it fades back
+   in at the new position. Repositioning a *visible* card makes it slide across the screen,
+   which reads as jank. Opacity-only, so it cannot fight the modal variant's centring transform. */
+.dp__tip {
+  position: absolute;
+  z-index: 10;
+  width: min(320px, 80%);
+  background: #fff;
+  border-radius: var(--dp-radius);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.28), 0 0 0 1px rgba(0, 0, 0, 0.06);
+  padding: 16px 18px;
+  opacity: 1;
+  transition: opacity 150ms ease;
+}
+.dp__tip.dp__fade { opacity: 0; }
+.dp__tip--modal {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(440px, 86%);
+  padding: 24px 26px;
+}
+.dp__tip--caption {
+  left: 24px;
+  bottom: 24px;
+  top: auto;
+  width: min(360px, 70%);
+}
+
+.dp__tip h3 {
+  margin: 0;
+  font-size: 15.5px;
+  font-weight: 650;
+  line-height: 1.32;
+  color: #18181b;
+  /* Headlines are short and often wrap to two lines; balancing avoids a lone trailing word. */
+  text-wrap: balance;
+}
+/* Space below the headline belongs to whatever follows it, so a title-only card stays tight
+   instead of carrying a phantom gap where the body would have been. */
+.dp__tip h3 + * { margin-top: 7px; }
+.dp__tip--modal h3 { font-size: 19px; }
+.dp__tip p {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: #52525b;
+  white-space: pre-wrap;
+}
+
+.dp__tipfoot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+}
+.dp__count {
+  font-size: 12px;
+  color: #a1a1aa;
+  font-variant-numeric: tabular-nums;
+}
+.dp__acts { display: flex; gap: 8px; align-items: center; }
+
+.dp__btn {
+  appearance: none;
+  border: 0;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 14px;
+  border-radius: 8px;
+  background: var(--dp-accent);
+  color: var(--dp-accent-text);
+  transition: filter 0.15s;
+}
+.dp__btn:hover { filter: brightness(1.1); }
+.dp__btn--ghost {
+  background: transparent;
+  color: #71717a;
+  padding: 8px 6px;
+}
+.dp__btn--ghost:hover { color: #18181b; }
+.dp__btn:disabled { opacity: 0.4; cursor: default; }
+
+/* Branch choices turn a step into a fork in the story. */
+.dp__branches {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 14px;
+}
+.dp__branch {
+  appearance: none;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 550;
+  text-align: left;
+  padding: 11px 14px;
+  border-radius: 9px;
+  border: 1px solid #e4e4e7;
+  background: #fafafa;
+  color: #18181b;
+  transition: all 0.15s;
+}
+.dp__branch:hover {
+  border-color: var(--dp-accent);
+  background: #fff;
+  transform: translateX(2px);
+}
+
+/* ---- chrome ---- */
+
+.dp__progress {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  z-index: 12;
+  background: rgba(255, 255, 255, 0.15);
+  transition: opacity 220ms linear;
+}
+.dp__progressbar {
+  height: 100%;
+  width: 0;
+  background: var(--dp-accent);
+  transition: width 0.35s ease;
+}
+
+.dp__nav {
+  position: absolute;
+  z-index: 12;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 999px;
+  background: rgba(16, 16, 20, 0.82);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.3);
+  transition: opacity 220ms linear;
+}
+/* Round icon buttons: a fixed square that cannot wrap, whatever the bar's width. */
+.dp__nav button {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border-radius: 50%;
+  transition: background 150ms ease;
+}
+.dp__nav button:hover:not(:disabled) { background: rgba(255, 255, 255, 0.16); }
+.dp__nav button:active:not(:disabled) { background: rgba(255, 255, 255, 0.24); }
+.dp__nav button:focus-visible { outline: 2px solid var(--dp-accent); outline-offset: 1px; }
+.dp__nav button:disabled { opacity: 0.3; cursor: default; }
+.dp__dots { display: flex; gap: 5px; padding: 0 6px; }
+.dp__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+  cursor: pointer;
+}
+.dp__dot { transition: background 200ms ease, transform 200ms ease; }
+.dp__dot--on { background: var(--dp-accent); transform: scale(1.25); }
+
+/* ---- peek: hide the guide, keep the way back ---- */
+
+/* Sits opposite the back/next bar, always on top, and never hides itself — it is the only way
+   to restore the guide, so it must survive its own toggle. */
+.dp__peek {
+  position: absolute;
+  z-index: 15;
+  bottom: 14px;
+  right: 14px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  appearance: none;
+  border: 0;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 8px 13px;
+  border-radius: 999px;
+  background: rgba(16, 16, 20, 0.82);
+  color: #fff;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.3);
+  transition: background 160ms ease, transform 160ms ease;
+}
+.dp__peek:hover { background: rgba(32, 32, 38, 0.92); }
+.dp__peek:active { transform: scale(0.97); }
+.dp__peek:focus-visible { outline: 2px solid var(--dp-accent); outline-offset: 2px; }
+.dp__peek svg { flex: none; opacity: 0.85; }
+
+/* While peeking the guide fades out but the frame, the progress bar, the back/next bar and the
+   toggle all stay — the viewer is inspecting the product, not leaving the tour. */
+.dp--peek .dp__spot,
+.dp--peek .dp__hit,
+.dp--peek .dp__beacon,
+.dp--peek .dp__tip,
+.dp--peek .dp__keys,
+.dp--peek .dp__cursor {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+/* Restored state reads as "the tour is running again". */
+.dp--peek .dp__peek { background: var(--dp-accent); color: var(--dp-accent-text); }
+.dp--peek .dp__peek:hover { filter: brightness(1.08); background: var(--dp-accent); }
+
+/* Narrow embeds: the label is what makes the control obvious, so shrink rather than drop it. */
+@media (max-width: 560px) {
+  /* A 16:10 capture on a portrait phone is only ~200px tall, so the bottom edge cannot hold
+     both the arrows and this button. Move it to the top corner and give the arrows the
+     whole bottom row. */
+  .dp__peek { top: 10px; right: 10px; bottom: auto; padding: 7px 10px; font-size: 11.5px; gap: 5px; }
+
+  /* On a phone the screen behind the guide is the scarce thing, and a row of 24 dots is
+     neither readable nor tappable at this width. Drop the dots and the bar they sat in, and
+     let the two arrows stand alone: bigger for thumbs, translucent so the step shows through
+     the gap between them. */
+  .dp__nav {
+    bottom: 10px;
+    /* Wide enough apart to read as two separate targets and to leave the step visible
+       between them, without pushing either under the frame's edge. */
+    gap: min(84px, 34vw);
+    padding: 0;
+    background: none;
+    backdrop-filter: none;
+    box-shadow: none;
+  }
+  .dp__dots { display: none; }
+  .dp__nav button {
+    width: 46px;
+    height: 46px;
+    background: rgba(12, 12, 16, 0.44);
+    backdrop-filter: blur(7px);
+    -webkit-backdrop-filter: blur(7px);
+    box-shadow: 0 3px 14px rgba(0, 0, 0, 0.28);
+  }
+  .dp__nav button svg { width: 22px; height: 22px; }
+  /* Touch has no hover, so the pressed state is the only feedback there is. */
+  .dp__nav button:hover:not(:disabled) { background: rgba(12, 12, 16, 0.44); }
+  .dp__nav button:active:not(:disabled) { background: rgba(12, 12, 16, 0.68); }
+  .dp__nav button:disabled { opacity: 0.22; }
+}
+
+/* ---- panels (lead form, end CTA, loading) ---- */
+
+.dp__panel {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(9, 9, 14, 0.72);
+  backdrop-filter: blur(6px);
+  padding: 24px;
+}
+.dp__card {
+  width: min(420px, 100%);
+  background: #fff;
+  border-radius: 16px;
+  padding: 28px;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.4);
+}
+.dp__card h2 {
+  margin: 0 0 8px;
+  font-size: 20px;
+  font-weight: 680;
+  color: #18181b;
+}
+.dp__card p {
+  margin: 0 0 18px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: #52525b;
+}
+.dp__field { margin-bottom: 12px; }
+.dp__field label {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #3f3f46;
+  margin-bottom: 5px;
+}
+.dp__field input,
+.dp__field select {
+  width: 100%;
+  font: inherit;
+  font-size: 14px;
+  padding: 10px 12px;
+  border: 1px solid #e4e4e7;
+  border-radius: 9px;
+  background: #fff;
+  color: #18181b;
+}
+.dp__field input:focus,
+.dp__field select:focus {
+  outline: 2px solid var(--dp-accent);
+  outline-offset: -1px;
+  border-color: transparent;
+}
+.dp__card .dp__btn { width: 100%; padding: 11px; font-size: 14px; }
+.dp__endacts {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 12px;
+}
+.dp__endacts .dp__btn { width: auto; padding: 8px 12px; font-size: 13px; }
+
+.dp__loading {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #0b0b0f;
+  color: #a1a1aa;
+  font-size: 13px;
+  transition: opacity 0.3s;
+}
+.dp__loading--gone { opacity: 0; pointer-events: none; }
+
+.dp__err {
+  padding: 32px;
+  color: #fca5a5;
+  font-size: 13px;
+  line-height: 1.6;
+  font-family: ui-monospace, monospace;
+}

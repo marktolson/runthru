@@ -1,0 +1,257 @@
+/* Runthru — shared chrome for the library, editor and showcase builder.
+   One accent, hairline borders, no gradients: the recordings are the color here. */
+
+:root {
+  --bg: #0b0b0d;
+  --panel: #121215;
+  --panel2: #19191d;
+  --line: rgba(255, 255, 255, 0.07);
+  --line-strong: rgba(255, 255, 255, 0.14);
+  --fg: #ededf0;
+  --muted: #94949e;
+  --accent: #5e5ce6;
+  --accent-dim: #4b49c9;
+  --good: #30d158;
+  --warn: #ffd60a;
+  --bad: #ff6961;
+  --radius: 10px;
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-2: 0 8px 30px rgba(0, 0, 0, 0.45);
+  --shadow-3: 0 24px 80px rgba(0, 0, 0, 0.6);
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--fg);
+  font: 14px/1.5 ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+a { color: inherit; }
+button, input, select, textarea { font: inherit; color: inherit; }
+
+::selection { background: rgba(94, 92, 230, 0.35); }
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+code {
+  font: 12px/1.4 ui-monospace, 'SF Mono', SFMono-Regular, Menlo, monospace;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 1px 5px;
+}
+
+/* ---------------------------------------------------------------- top bar */
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 52px;
+  padding: 0 18px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(18, 18, 21, 0.82);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  flex: 0 0 auto;
+  position: relative;
+  z-index: 10;
+}
+/* Runthru's mark: a screen with the play head running out through it. The frame breaks
+   open on the right — only its corners survive — so the triangle reads as passing through
+   rather than sitting inside. Frame in the dim accent, play head bright, which is what makes
+   the movement the first thing the eye picks up. Drawn on a 24px grid: legible at 16px. */
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 650;
+  font-size: 13.5px;
+  letter-spacing: -0.012em;
+  text-decoration: none;
+  color: var(--fg);
+}
+.brand__mark {
+  width: 19px;
+  height: 19px;
+  flex: 0 0 auto;
+  display: block;
+  overflow: visible;
+}
+.brand__frame {
+  stroke: var(--accent-dim);
+  stroke-width: 2;
+  stroke-linecap: round;
+  fill: none;
+  transition: stroke 0.15s;
+}
+.brand__play {
+  fill: #7d7bff;
+  /* A hair of glow keeps the mark from looking flat on the near-black chrome. */
+  filter: drop-shadow(0 0 5px rgba(125, 123, 255, 0.4));
+}
+.brand:hover .brand__frame { stroke: var(--accent); }
+.brand__name { display: inline-flex; align-items: baseline; }
+.brand__name b { font-weight: 650; }
+.brand__name span { font-weight: 450; color: var(--muted); }
+.topbar .sep { flex: 1; }
+.crumb { color: var(--muted); font-size: 13px; display: flex; align-items: center; gap: 7px; }
+.crumb strong { color: var(--fg); font-weight: 600; }
+.ai-ok {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--good);
+  display: inline-block;
+}
+.linkbtn {
+  appearance: none; border: 0; background: transparent; cursor: pointer;
+  color: var(--accent); font-size: 13px; font-weight: 550; padding: 4px 2px;
+}
+.linkbtn:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+/* ---------------------------------------------------------------- buttons */
+
+.btn {
+  appearance: none;
+  border: 1px solid var(--line-strong);
+  background: var(--panel2);
+  border-radius: 8px;
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 550;
+  letter-spacing: 0.005em;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.06s;
+}
+.btn:hover { background: #212127; border-color: rgba(255, 255, 255, 0.22); }
+.btn:active { transform: scale(0.98); }
+.btn:disabled { opacity: 0.38; cursor: default; transform: none; }
+.btn--primary {
+  background: var(--accent);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: var(--shadow-1);
+}
+.btn--primary:hover { background: var(--accent-dim); border-color: transparent; }
+.btn--danger:hover { border-color: rgba(255, 105, 97, 0.5); color: var(--bad); background: rgba(255, 105, 97, 0.06); }
+.btn--sm { padding: 4.5px 10px; font-size: 12.5px; border-radius: 7px; }
+.btn--ghost { background: transparent; border-color: transparent; color: var(--muted); }
+.btn--ghost:hover { color: var(--fg); background: var(--panel2); border-color: transparent; }
+
+/* ---------------------------------------------------------------- forms */
+
+.field { margin-bottom: 14px; }
+.field > label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+.input, textarea.input, select.input {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  padding: 8px 11px;
+  font-size: 13.5px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.input::placeholder { color: #5c5c66; }
+.input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(94, 92, 230, 0.18);
+}
+.input--key { font-family: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, monospace; font-size: 13px; }
+textarea.input { resize: vertical; min-height: 68px; line-height: 1.5; }
+.row { display: flex; gap: 8px; }
+.row > * { min-width: 0; }
+.hint { font-size: 12px; color: var(--muted); line-height: 1.55; }
+.hint a { color: var(--fg); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: rgba(255,255,255,.3); }
+.hint a:hover { text-decoration-color: var(--fg); }
+
+.check { display: flex; align-items: center; gap: 8px; font-size: 13px; margin-bottom: 9px; cursor: pointer; }
+.check input { accent-color: var(--accent); width: 15px; height: 15px; }
+
+/* ---------------------------------------------------------------- toast */
+
+.toast {
+  position: fixed;
+  bottom: 22px; left: 50%;
+  transform: translateX(-50%);
+  background: #202026;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  padding: 9px 20px;
+  font-size: 13px;
+  font-weight: 500;
+  z-index: 400;
+  box-shadow: var(--shadow-2);
+  animation: rise 0.3s var(--ease);
+}
+.toast--bad { border-color: rgba(255, 105, 97, 0.5); color: #ffb4ae; }
+.toast--good { border-color: rgba(48, 209, 88, 0.45); }
+@keyframes rise { from { opacity: 0; transform: translate(-50%, 12px); } }
+
+/* ---------------------------------------------------------------- modal */
+
+.modal {
+  position: fixed; inset: 0; z-index: 300;
+  background: rgba(5, 5, 8, 0.66);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+  animation: fade 0.2s ease;
+}
+.modal__card {
+  width: min(500px, 100%);
+  background: var(--panel);
+  border: 1px solid var(--line-strong);
+  border-radius: 16px;
+  padding: 26px;
+  box-shadow: var(--shadow-3);
+  max-height: 85vh;
+  overflow: auto;
+  animation: pop 0.28s var(--ease);
+}
+.modal__card h2 { margin: 0 0 8px; font-size: 17px; font-weight: 650; letter-spacing: -0.01em; }
+.modal__card > p { margin: 0 0 16px; color: var(--muted); font-size: 13px; line-height: 1.6; }
+.modal__foot { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+@keyframes fade { from { opacity: 0; } }
+@keyframes pop { from { opacity: 0; transform: translateY(10px) scale(0.98); } }
+
+/* ---------------------------------------------------------------- empty state */
+
+.empty {
+  text-align: center;
+  padding: 80px 24px;
+  color: var(--muted);
+}
+.empty h2 { color: var(--fg); font-size: 16px; font-weight: 600; letter-spacing: -0.01em; margin: 0 0 8px; }
+.empty p { margin: 0 auto 22px; max-width: 400px; line-height: 1.6; font-size: 13.5px; }
+
+/* ---------------------------------------------------------------- scrollbars */
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #2a2a31; border-radius: 6px; border: 2px solid var(--bg); }
+::-webkit-scrollbar-thumb:hover { background: #383841; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
