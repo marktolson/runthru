@@ -15,12 +15,13 @@
 
 <p align="center">
   <img src="docs/editor.png" width="100%"
-       alt="The Runthru editor: the step filmstrip on the left, a live interactive preview in the middle with a tooltip anchored to its target, and the step inspector on the right">
+       alt="The Runthru editor: the step filmstrip on the left, a live interactive preview in the middle showing a demo's entry page over the blurred first screen, and the inspector on the right with the entry page settings open">
 </p>
 
 <p align="center">
-  <em>Steps down the left, the real captured screen in the middle, and everything about the
-  current step on the right: copy, target, how it advances, where it goes next.</em>
+  <em>Steps down the left, a live interactive preview in the middle, and the inspector on the
+  right. Here it is the optional entry page being written — every change lands on the preview
+  as you type.</em>
 </p>
 
 <p align="center">
