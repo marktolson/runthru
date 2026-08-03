@@ -63,6 +63,19 @@ export function modal({ title, body, confirm = 'OK', cancel = 'Cancel', onConfir
   return { root, close };
 }
 
+// Mirrors slugify() in server/store.js, so the studio can show the exact folder and URL an
+// export is about to get. The server re-slugifies whatever it is sent, so this is only ever a
+// preview of that decision, never the authority on it.
+export function slugify(s) {
+  return (
+    String(s || '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 60) || 'demo'
+  );
+}
+
 export function esc(s) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 }

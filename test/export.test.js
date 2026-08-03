@@ -1,9 +1,13 @@
 // Static export and the zip writer.
 //
 // An export is what actually leaves the machine, so the things worth pinning are: it is
-// self-contained, it carries nothing internal, and the file someone downloads is named after
-// the demo rather than its slug (a slug is derived from whatever the demo was first called,
-// often the entire recording brief).
+// self-contained, it carries nothing internal, and it is named by whatever the author calls
+// the export — falling back to the demo's title, never to its slug, which is derived from
+// whatever the demo was first called and is often the entire recording brief.
+//
+// Every demo seeded here is named "Zz exporttest …" on purpose. The export name now decides a
+// real folder under dist/, and these tests delete the folders they create, so a test demo
+// called something ordinary like "Rebuilt" could delete a genuine export of the same name.
 
 import { test, describe, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -62,13 +66,14 @@ async function seedDemo(name) {
 
 describe('exportDemo', () => {
   test('names the downloadable zip after the demo, not its slug', async () => {
-    const slug = await seedDemo('Create a project with Ru');
+    const slug = await seedDemo('Zz exporttest create a project with Ru');
     const r = await exportDemo(slug);
     cleanup.add(r.zipPath);
+    cleanup.add(r.dir);
 
-    assert.equal(r.fileName, 'create-a-project-with-ru');
-    assert.equal(path.basename(r.zipPath), 'create-a-project-with-ru.zip');
-    assert.equal(r.zipUrl, '/dist/create-a-project-with-ru.zip');
+    assert.equal(r.fileName, 'zz-exporttest-create-a-project-with-ru');
+    assert.equal(path.basename(r.zipPath), 'zz-exporttest-create-a-project-with-ru.zip');
+    assert.equal(r.zipUrl, '/dist/zz-exporttest-create-a-project-with-ru.zip');
     assert.notEqual(r.fileName, slug, 'the slug should not be the download name');
     assert.ok(await fs.stat(r.zipPath).then(() => true, () => false), 'zip was not written');
   });
@@ -77,15 +82,19 @@ describe('exportDemo', () => {
     const slug = await seedDemo('!!!');
     const r = await exportDemo(slug);
     cleanup.add(r.zipPath);
-    // slugify() yields its own fallback rather than an empty filename.
+    cleanup.add(r.dir);
     assert.ok(r.fileName.length > 0);
     assert.doesNotMatch(r.fileName, /[^a-z0-9-]/, 'filename must be filesystem-safe');
+    // Specifically this demo's slug, not a shared generic fallback: two demos that both name
+    // themselves unusably must not export into the same folder and overwrite each other.
+    assert.equal(r.exportSlug, slug);
   });
 
   test('writes a self-contained bundle: player, document, snapshot and entry point', async () => {
-    const slug = await seedDemo('Bundle contents');
+    const slug = await seedDemo('Zz exporttest bundle contents');
     const r = await exportDemo(slug);
     cleanup.add(r.zipPath);
+    cleanup.add(r.dir);
 
     for (const f of ['index.html', 'demo.json', 'player.js', 'player.css', 'embed.txt', 'steps/step-001.html']) {
       assert.ok(await fs.stat(path.join(r.dir, f)).then(() => true, () => false), `bundle is missing ${f}`);
@@ -95,9 +104,10 @@ describe('exportDemo', () => {
   });
 
   test('strips studio-only fields from the published document', async () => {
-    const slug = await seedDemo('Stripped');
+    const slug = await seedDemo('Zz exporttest stripped');
     const r = await exportDemo(slug);
     cleanup.add(r.zipPath);
+    cleanup.add(r.dir);
 
     const published = JSON.parse(await fs.readFile(path.join(r.dir, 'demo.json'), 'utf8'));
     assert.equal(published.nodes[0].pageContext, undefined, 'internal page context was published');
@@ -106,9 +116,10 @@ describe('exportDemo', () => {
   });
 
   test('the entry point references only relative paths, so any static host works', async () => {
-    const slug = await seedDemo('Relative paths');
+    const slug = await seedDemo('Zz exporttest relative paths');
     const r = await exportDemo(slug);
     cleanup.add(r.zipPath);
+    cleanup.add(r.dir);
 
     const html = await fs.readFile(path.join(r.dir, 'index.html'), 'utf8');
     assert.match(html, /\.\/player\.css/);
@@ -116,14 +127,70 @@ describe('exportDemo', () => {
     assert.doesNotMatch(html, /(src|href)="\//, 'an absolute path would break a subfolder deploy');
   });
 
+  test('an explicit export name decides the folder, the zip and the embed URL', async () => {
+    const slug = await seedDemo('Zz exporttest whatever');
+    const r = await exportDemo(slug, { name: 'Zz exporttest create a project with Ru!' });
+    cleanup.add(r.zipPath);
+    cleanup.add(r.dir);
+
+    assert.equal(r.exportSlug, 'zz-exporttest-create-a-project-with-ru');
+    assert.equal(path.basename(r.dir), 'zz-exporttest-create-a-project-with-ru', 'the folder should take the export name');
+    assert.equal(path.basename(r.zipPath), 'zz-exporttest-create-a-project-with-ru.zip');
+
+    // The folder, the zip and the URL in the embed snippet must all agree, or the snippet
+    // points somewhere the bundle was never published to.
+    const embed = await fs.readFile(path.join(r.dir, 'embed.txt'), 'utf8');
+    assert.match(embed, /YOUR-HOST\/zz-exporttest-create-a-project-with-ru\//);
+  });
+
+  test('the export name is slugified, so it cannot escape dist/', async () => {
+    const slug = await seedDemo('Zz exporttest traversal');
+    const r = await exportDemo(slug, { name: '../../etc/passwd' });
+    cleanup.add(r.zipPath);
+    cleanup.add(r.dir);
+
+    assert.doesNotMatch(r.exportSlug, /[^a-z0-9-]/, 'the name arrives off the wire and names a directory');
+    assert.equal(path.dirname(path.resolve(r.dir)), path.resolve(DIST_DIR), 'the bundle escaped dist/');
+  });
+
+  test('remembers the export name and public URL for next time', async () => {
+    const slug = await seedDemo('Zz exporttest remembered');
+    const r = await exportDemo(slug, { name: 'Zz exporttest pick me', publicUrl: 'https://demos.example.test/pick-me/' });
+    cleanup.add(r.zipPath);
+    cleanup.add(r.dir);
+
+    const doc = await readDemo(slug);
+    // Stored as typed, not as the slug it became — reopening the dialog should show the title
+    // the author wrote, and it still slugifies back to the same folder.
+    assert.equal(doc.export.name, 'Zz exporttest pick me');
+    assert.equal(doc.export.publicUrl, 'https://demos.example.test/pick-me/');
+  });
+
+  test('the remembered export settings are never published to viewers', async () => {
+    const slug = await seedDemo('Zz exporttest not published');
+    const first = await exportDemo(slug, { name: 'Zz exporttest round one', publicUrl: 'https://internal.example.test/' });
+    cleanup.add(first.zipPath);
+    cleanup.add(first.dir);
+
+    // Only the second export can carry it: the first is what writes it in the first place.
+    const second = await exportDemo(slug, { name: 'Zz exporttest round two' });
+    cleanup.add(second.zipPath);
+    cleanup.add(second.dir);
+
+    const published = JSON.parse(await fs.readFile(path.join(second.dir, 'demo.json'), 'utf8'));
+    assert.equal(published.export, undefined, 'studio dialog state was published to viewers');
+  });
+
   test('re-exporting replaces the bundle rather than accumulating stale files', async () => {
-    const slug = await seedDemo('Rebuilt');
+    const slug = await seedDemo('Zz exporttest rebuilt');
     const first = await exportDemo(slug);
     cleanup.add(first.zipPath);
+    cleanup.add(first.dir);
     await fs.writeFile(path.join(first.dir, 'stale.txt'), 'left over', 'utf8');
 
     const second = await exportDemo(slug);
     cleanup.add(second.zipPath);
+    cleanup.add(second.dir);
     assert.equal(await fs.stat(path.join(second.dir, 'stale.txt')).then(() => true, () => false), false);
   });
 });

@@ -9,7 +9,7 @@
 
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { demoDir, readDemo, slugify, DIST_DIR, ROOT } from './store.js';
+import { demoDir, readDemo, writeDemo, withDemoLock, slugify, DIST_DIR, ROOT } from './store.js';
 import { zipDirectory } from './zip.js';
 
 async function copyDir(from, to) {
@@ -58,8 +58,8 @@ function indexHtml(doc) {
 </html>`;
 }
 
-function embedSnippet(doc, publicUrl) {
-  const url = publicUrl || `https://YOUR-HOST/${doc.slug}/`;
+function embedSnippet(doc, publicUrl, exportSlug) {
+  const url = publicUrl || `https://YOUR-HOST/${exportSlug}/`;
   return `<!-- ${doc.name || doc.slug} — responsive embed -->
 <div style="position:relative;width:100%;padding-bottom:62.5%;height:0;overflow:hidden;border-radius:12px">
   <iframe
@@ -77,10 +77,25 @@ because browsers give file:// iframes an opaque origin and the player cannot mea
 `;
 }
 
-export async function exportDemo(slug, { publicUrl = '' } = {}) {
+export async function exportDemo(slug, { publicUrl = '', name = '' } = {}) {
   const doc = await readDemo(slug);
   const src = demoDir(slug);
-  const out = path.join(DIST_DIR, slug);
+
+  // What the export is called: its folder, its zip, and the last segment of the URL it will be
+  // hosted at. Defaults to the demo's title rather than its slug, because the slug is derived
+  // from whatever the demo was first called — often the entire recording brief — which reads
+  // badly in a public link. Slugified here rather than trusted, since it arrives off the wire
+  // and names a directory.
+  // Cleaned here rather than via slugify(), whose own "demo" fallback would send every
+  // unusably-named demo to the same dist/demo folder to overwrite each other. An empty result
+  // falls back to this demo's slug, which is unique by construction.
+  const exportSlug =
+    String(name || doc.name || '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 60) || slug;
+  const out = path.join(DIST_DIR, exportSlug);
 
   await fs.rm(out, { recursive: true, force: true });
   await fs.mkdir(out, { recursive: true });
@@ -97,6 +112,7 @@ export async function exportDemo(slug, { publicUrl = '' } = {}) {
 
   // Strip studio-only fields so the published document carries nothing internal.
   const published = JSON.parse(JSON.stringify(doc));
+  delete published.export; // remembered dialog state, of no interest to a viewer
   for (const n of published.nodes) {
     delete n.pageContext;
     delete n.capture;
@@ -104,27 +120,39 @@ export async function exportDemo(slug, { publicUrl = '' } = {}) {
 
   await fs.writeFile(path.join(out, 'demo.json'), JSON.stringify(published, null, 2), 'utf8');
   await fs.writeFile(path.join(out, 'index.html'), indexHtml(doc), 'utf8');
-  await fs.writeFile(path.join(out, 'embed.txt'), embedSnippet(doc, publicUrl), 'utf8');
+  await fs.writeFile(path.join(out, 'embed.txt'), embedSnippet(doc, publicUrl, exportSlug), 'utf8');
 
   const size = await dirSize(out);
 
   // Ship it as one file too. A bundle is hundreds of snapshot files; the zip is what actually
-  // gets emailed, attached to a ticket or dragged onto a host — so it is named after the demo
-  // rather than its slug. The slug is derived from whatever the demo was first called (often
-  // the whole recording brief), while the name is the title the author settled on.
-  const fileName = slugify(doc.name) || slug;
-  const zipPath = path.join(DIST_DIR, `${fileName}.zip`);
-  const zip = await zipDirectory(out, zipPath, { root: fileName });
+  // gets emailed, attached to a ticket or dragged onto a host. It carries the same name as the
+  // folder so that what you download, what you unzip and what the URL says all agree.
+  const zipPath = path.join(DIST_DIR, `${exportSlug}.zip`);
+  const zip = await zipDirectory(out, zipPath, { root: exportSlug });
+
+  // Remember what this export was called and where it is hosted, so the next one offers them
+  // back instead of making the author retype both. Re-read inside the lock because everything
+  // above is slow and the document may have moved on; written without a history entry, since
+  // exporting is not an edit to the demo and must never cost an undo step.
+  // The name is stored as it was typed, not as the slug it became: slugifying is deterministic,
+  // so it still comes back to the same folder, and the author sees the title they wrote rather
+  // than having it collapse to a slug the moment they reopen the dialog.
+  await withDemoLock(slug, async () => {
+    const fresh = await readDemo(slug);
+    fresh.export = { name: name || doc.name, publicUrl };
+    await writeDemo(slug, fresh, { history: false });
+  }).catch(() => {}); // a bundle that is already on disk must not fail over a bookkeeping write
 
   return {
     slug,
-    fileName,
+    exportSlug,
+    fileName: exportSlug,
     dir: out,
     bytes: size,
     steps: doc.nodes.length,
     zipPath,
     zipBytes: zip.bytes,
-    zipUrl: `/dist/${encodeURIComponent(fileName)}.zip`,
+    zipUrl: `/dist/${encodeURIComponent(exportSlug)}.zip`,
   };
 }
 

@@ -5,7 +5,7 @@
 // works identically no matter which one made the change.
 
 import { DemoPlayer } from '/player/player.js';
-import { api, toast, modal, esc, debounce } from '/studio/util.js';
+import { api, toast, modal, esc, debounce, slugify } from '/studio/util.js';
 
 const slug = new URLSearchParams(location.search).get('demo');
 if (!slug) location.href = '/';
@@ -1190,14 +1190,29 @@ function offerDraft() {
 }
 
 document.getElementById('exportBtn').onclick = () => {
-  modal({
+  // Whatever the last export was called comes back, so re-exporting is one click and the name
+  // cannot drift between takes. Falls back to the demo's title on the first export — never to
+  // the recording slug, which is usually the whole brief and reads badly in a link.
+  const last = doc.export || {};
+  const suggested = slugify(last.name || doc.name);
+  const m = modal({
     title: 'Export a static bundle',
     body: `<p>Writes a self-contained folder with no backend — player, snapshots and assets. Host it anywhere.</p>
+      <div class="field"><label>Export name</label>
+        <input class="input" id="xName" value="${esc(last.name || doc.name)}">
+        <div class="hint">Names the folder, the zip and the last part of the public URL:
+          <code id="xSlug">${esc(suggested)}</code></div>
+      </div>
       <div class="field"><label>Public URL (optional, for the embed snippet)</label>
-      <input class="input" id="xUrl" placeholder="https://demos.yoursite.com/${esc(slug)}/"></div>`,
+      <input class="input" id="xUrl" value="${esc(last.publicUrl || '')}" placeholder="https://demos.yoursite.com/${esc(suggested)}/"></div>`,
     confirm: 'Export',
     onConfirm: async (root, close) => {
-      const r = await api(`/api/export/${slug}`, { method: 'POST', body: { publicUrl: root.querySelector('#xUrl').value.trim() } });
+      const publicUrl = root.querySelector('#xUrl').value.trim();
+      const name = root.querySelector('#xName').value.trim();
+      const r = await api(`/api/export/${slug}`, { method: 'POST', body: { publicUrl, name } });
+      // The server just recorded this against the demo; mirror it locally so reopening the
+      // dialog in this session offers it back without a reload.
+      doc.export = { name: name || doc.name, publicUrl };
       close();
       modal({
         title: 'Exported',
@@ -1209,12 +1224,23 @@ document.getElementById('exportBtn').onclick = () => {
               : ''
           }
           <div class="field"><label>Written to</label><input class="input" value="${esc(r.dir)}" readonly onclick="this.select()"></div>
-          <p class="hint">Preview it with <code>npm run serve-export -- ${esc(slug)}</code>, then open <code>http://localhost:4500</code>. It must be served over http — opening index.html from disk will not work.</p>`,
+          <p class="hint">Preview it with <code>npm run serve-export -- ${esc(r.exportSlug || slug)}</code>, then open <code>http://localhost:4500</code>. It must be served over http — opening index.html from disk will not work.</p>`,
         confirm: 'Done',
         cancel: 'Close',
       });
     },
   });
+
+  // Show the slug the name will actually produce, so there is no guessing what the folder and
+  // the URL end up called. The server slugifies again on arrival; this only previews it.
+  const nameEl = m.root.querySelector('#xName');
+  const urlEl = m.root.querySelector('#xUrl');
+  const slugEl = m.root.querySelector('#xSlug');
+  nameEl.oninput = () => {
+    const s = slugify(nameEl.value);
+    slugEl.textContent = s;
+    urlEl.placeholder = `https://demos.yoursite.com/${s}/`;
+  };
 };
 
 // ---------------------------------------------------------------- boot

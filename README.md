@@ -25,6 +25,11 @@
 </p>
 
 <p align="center">
+  <strong><a href="https://runnit.io/demos/i-want-you-to-create-a-demo-of-from-the-dashboard-clickin/">▶ See a demo Runthru exported, live →</a></strong><br>
+  <sub>A real recording, published as a static bundle — entry page, guide cursor, replayed typing and all.</sub>
+</p>
+
+<p align="center">
   <sub>MIT licensed. A personal project, shared as is, with no warranty. You are responsible
   for what you record. See <a href="#disclaimer">Disclaimer</a>.</sub>
 </p>
@@ -262,17 +267,25 @@ your site. Demos mount lazily, so a ten-feature showcase doesn't load ten snapsh
 
 ## Export
 
-**Export** writes `dist/<slug>/`: player, demo document, snapshots, assets, an `index.html` and
-an `embed.txt` with a responsive iframe snippet. No backend at all.
+**Export** asks what to call the bundle, then writes `dist/<export-name>/`: player, demo
+document, snapshots, assets, an `index.html` and an `embed.txt` with a responsive iframe
+snippet. No backend at all.
 
-Every export also writes a zip beside the folder, `dist/<slug>.zip`, with everything nested
-under one directory so unzipping never scatters files, and the export dialog offers it as a
-direct download. Snapshots are markup, so bundles typically compress to well under half their
-size on disk. The archive is written with `node:zlib` alone; no zip dependency was added.
+The export name is yours to choose — it names the folder, the zip and the last segment of the
+URL you host at, so all three agree. It defaults to the demo's **title**, not its slug: the
+slug comes from whatever the demo was first called, which after an AI recording is usually the
+entire brief and reads badly in a public link. The dialog shows the exact slug your name will
+produce as you type, and remembers both the name and the public URL against the demo, so
+re-exporting is one click and the URL never drifts between takes.
+
+Every export also writes a zip beside the folder, `dist/<export-name>.zip`, with everything
+nested under one directory so unzipping never scatters files, and the export dialog offers it
+as a direct download. Snapshots are markup, so bundles typically compress to well under half
+their size on disk. The archive is written with `node:zlib` alone; no zip dependency was added.
 
 ```bash
 npm run serve-export                  # lists every export
-npm run serve-export -- runnit-dashboard
+npm run serve-export -- your-export-name
 ```
 
 > Exports must be served over **http(s)**, not opened as a `file://` path. Browsers give
