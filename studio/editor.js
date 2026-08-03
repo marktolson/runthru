@@ -171,7 +171,7 @@ function renderStep() {
       <h4>Copy</h4>
       <div class="field withai">
         <label>Headline</label>
-        <input class="input" id="fTitle" value="${esc(a.title || '')}" placeholder="Click “New project”">
+        <input class="input" id="fTitle" value="${esc(a.title || '')}" placeholder="Click “New”">
         <div class="aibtns" data-ai-for="title">${aiChips()}</div>
       </div>
       <div class="field withai">
@@ -428,7 +428,7 @@ function renderDemo() {
       <h4>Details</h4>
       <div class="field"><label>Name</label><input class="input" id="dName" value="${esc(doc.name)}"></div>
       <div class="field"><label>Description</label>
-        <textarea class="input" id="dDesc" rows="3" placeholder="Create an empty project, add and schedule the first task, then activate it.">${esc(doc.description || '')}</textarea>
+        <textarea class="input" id="dDesc" rows="3" placeholder="Add a new customer, fill in their details, and send them a welcome email.">${esc(doc.description || '')}</textarea>
         <div class="hint">Doubles as the brief for <strong>↻ Re-record</strong> — edit it, then re-record to shoot the demo again.</div>
       </div>
     </div>
@@ -485,7 +485,7 @@ function renderDemo() {
           ? `<div class="field" style="margin-top:9px"><label>Eyebrow <span class="hint">(optional)</span></label>
               <input class="input" id="cvEyebrow" value="${esc(cv.eyebrow || '')}" placeholder="Product tour"></div>
              <div class="field"><label>Headline</label>
-              <input class="input" id="cvHead" value="${esc(cv.headline || '')}" placeholder="${esc(doc.name || 'Build demo pages')}"></div>
+              <input class="input" id="cvHead" value="${esc(cv.headline || '')}" placeholder="${esc(doc.name || 'See how it works')}"></div>
              <div class="field"><label>Body</label>
               <textarea class="input" id="cvBody" rows="2" placeholder="Falls back to the description.">${esc(cv.body || '')}</textarea></div>
              <div class="field"><label>Button</label>
@@ -802,7 +802,7 @@ async function autodraft() {
     title: 'Draft the story with AI',
     body: `<p>AI reads every captured screen — headings, labels, what you clicked, and a screenshot of each — then writes the whole walkthrough.</p>
       <div class="field"><label>Anything it should know? (optional)</label>
-      <textarea class="input" id="guide" placeholder="Aimed at agency owners evaluating us against spreadsheets. Emphasise scheduling."></textarea></div>
+      <textarea class="input" id="guide" placeholder="Aimed at team leads evaluating us against spreadsheets. Emphasise time saved."></textarea></div>
       <p class="hint">This replaces the copy on every step. Undo restores it.</p>`,
     confirm: 'Draft it',
     onConfirm: async (root, close) => {
@@ -948,7 +948,7 @@ async function startReRecording() {
     body: `<p>AI runs the whole demo again from the description below and replaces all
         ${doc.nodes.length} step${doc.nodes.length === 1 ? '' : 's'}. <strong>Undo brings the old take back.</strong></p>
       <div class="field"><label>What the demo should show</label>
-        <textarea class="input" id="rrScenario" rows="4" placeholder="Create an empty project, add and schedule the first task, then activate it.">${esc(doc.description || '')}</textarea>
+        <textarea class="input" id="rrScenario" rows="4" placeholder="Add a new customer, fill in their details, and send them a welcome email.">${esc(doc.description || '')}</textarea>
         <div class="hint">This is the demo's description — editing it here updates it.</div></div>
       <div class="field"><label>Docs URL <span class="hint">(optional)</span></label>
         <input class="input" id="rrDocs" value="${esc(known?.docsUrl || '')}" placeholder="https://docs.example.com/getting-started"></div>
@@ -989,7 +989,7 @@ function startAiRecording() {
         realistic data, and every action it takes becomes a step — then it drafts the copy. Watch it work;
         hit Finish any time to stop it.</p>
       <div class="field"><label>Scenario to demonstrate</label>
-        <textarea class="input" id="aiScenario" rows="3" placeholder="Create a new project for a beverage client, add two tasks with due dates, and assign one to a teammate.">${esc(doc.description || '')}</textarea>
+        <textarea class="input" id="aiScenario" rows="3" placeholder="Add a new customer, fill in their details, and send them a welcome email.">${esc(doc.description || '')}</textarea>
         <div class="hint">Saved as the demo's description, so <strong>↻ Re-record</strong> can reuse it.</div></div>
       <div class="field"><label>Docs URL <span class="hint">(optional — AI reads it to follow the intended flow)</span></label>
         <input class="input" id="aiDocs" placeholder="https://docs.example.com/getting-started"></div>

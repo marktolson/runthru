@@ -6,6 +6,9 @@ node_modules/
 # Recorded demos and their captured assets
 demos/
 
+# Feature showcases — your own content, same as demos/
+showcases/
+
 # Exported static bundles
 dist/
 

@@ -179,7 +179,7 @@ function newDemo() {
   modal({
     title: 'New demo',
     body: `<p>Give it a name and the URL to start recording from. You'll drive the browser yourself.</p>
-      <div class="field"><label>Name</label><input class="input" id="mName" placeholder="Runnit dashboard tour" autofocus></div>
+      <div class="field"><label>Name</label><input class="input" id="mName" placeholder="Dashboard tour" autofocus></div>
       <div class="field"><label>Start URL</label><input class="input" id="mUrl" placeholder="https://app.example.com/dashboard"></div>
       <p class="hint">You can record now or later — the demo is created either way.</p>`,
     confirm: 'Create',
@@ -202,7 +202,7 @@ function aiRecord() {
         data and records every action as a step — then writes the story.</p>
       <div class="field"><label>Start URL</label><input class="input" id="aUrl" placeholder="https://app.example.com/dashboard" autofocus></div>
       <div class="field"><label>Scenario to demonstrate</label>
-        <textarea class="input" id="aScenario" rows="3" placeholder="Create a new project for a beverage client, add two tasks with due dates, and assign one to a teammate."></textarea></div>
+        <textarea class="input" id="aScenario" rows="3" placeholder="Add a new customer, fill in their details, and send them a welcome email."></textarea></div>
       <div class="field"><label>Docs URL <span class="hint">(optional — AI reads it to follow the intended flow)</span></label>
         <input class="input" id="aDocs" placeholder="https://docs.example.com/getting-started"></div>
       <div class="row">
@@ -237,7 +237,7 @@ function newShowcase() {
   modal({
     title: 'New feature showcase',
     body: `<p>Group several demos into one embeddable component.</p>
-      <div class="field"><label>Name</label><input class="input" id="sName" placeholder="Why teams choose Runnit" autofocus></div>`,
+      <div class="field"><label>Name</label><input class="input" id="sName" placeholder="Why teams choose us" autofocus></div>`,
     confirm: 'Create',
     onConfirm: async (root) => {
       const name = root.querySelector('#sName').value.trim();
