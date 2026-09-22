@@ -46,8 +46,9 @@ export. Keep them passing.
   [`../docs/operations/MAKE_A_DEMO.md`](../docs/operations/MAKE_A_DEMO.md).
 - **Set a deliberate name**, because it becomes the slug. Some published demos
   carry long auto-generated slugs taken from the recording prompt.
-- Step copy follows Runnit's voice: short declaratives, concrete nouns, **no em
-  dashes**.
+- Step copy follows Runnit's voice, in
+  [`../docs/conventions/TONE_OF_VOICE.md`](../docs/conventions/TONE_OF_VOICE.md):
+  plain English, whole sentences, friendly, **no em dashes**. Read it first.
 
 ## Publishing
 
